@@ -385,7 +385,14 @@ def _build_alerts(schemes, portals, igod_raw):
     # ── Health schemes
     health = [s for s in schemes if re.search(r"health|medical|ayush|chiranjeevi|dawa|hospital", s.get("category", ""), re.I)]
     if health:
-        names = ", ".join(s["name"] for s in health[:3])
+        names = ", ".join(
+    s.get("name") 
+    or s.get("scheme_name") 
+    or s.get("organization_name") 
+    or s.get("title") 
+    or "Unknown"
+    for s in health[:3]
+)
         alerts.append({
             "id": "alert_health", "type": "ACTION", "severity": "Action", "icon": "🏥",
             "title": f"{len(health)} Health Schemes Active — Rajasthan",
