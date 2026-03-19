@@ -3,8 +3,9 @@ igod_scraper.py
 Scrapes igod.gov.in for Rajasthan government portals directory.
 Extracts organization_name, department/ministry, category, and website_url.
 """
-import re, logging, requests, time, urllib3
+import json, re, logging, requests, time, urllib3
 from datetime import datetime, timezone
+from pathlib import Path
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 
@@ -13,6 +14,7 @@ urllib3.disable_warnings()
 log = logging.getLogger("scraper.igod")
 BASE_URL = "https://igod.gov.in"
 IGOD_URL = "https://igod.gov.in/sg/RJ/SPMA/organizations"
+OUTPUT_PATH = Path(__file__).resolve().parents[1] / "data" / "igod_portals.json"
 HEADERS  = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -133,6 +135,13 @@ def scrape_igod():
 
     log.info("IGOD: %d organizations found", len(portals))
     return portals if portals else _fallback(ts)
+
+
+def save_json(data, output_path=OUTPUT_PATH):
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    log.info("Saved %d IGOD portals to %s", len(data), output_path)
 
 def _fallback(ts):
     known = [

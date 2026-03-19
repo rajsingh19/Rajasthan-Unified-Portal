@@ -67,6 +67,7 @@ const timeAgo = iso => {
   return `${Math.floor(s/3600)}h ago`;
 };
 const palColor = i => PALETTE[i % PALETTE.length];
+const isReadyStatus = (status) => status === "ok" || status === "fallback";
 
 // ── safeUrl — never produce a 404 link ───────────────────────────────────────
 const DEAD_URLS = [
@@ -249,7 +250,7 @@ const isBaseUrl = (url) => {
 };
 
 function StatusDot({ status, animating }) {
-  const c = { ok:"#10b981", error:"#ef4444", loading:"#f59e0b", not_scraped:"#d1d5db" }[status] || "#d1d5db";
+  const c = { ok:"#10b981", fallback:"#f59e0b", error:"#ef4444", loading:"#f59e0b", not_scraped:"#d1d5db" }[status] || "#d1d5db";
   return (
     <span style={{ display:"inline-block", width:8, height:8, borderRadius:"50%",
       background:c, flexShrink:0, animation:animating?"pulse 1s infinite":"none" }}/>
@@ -301,6 +302,12 @@ function EmptyState({ onScrape }) {
 function DashboardTab({ agg, srcStatus, onScrapeAll, onScrapeOne, scraping, budget, budgetLoading }) {
   if (!agg) return <EmptyState onScrape={onScrapeAll}/>;
   const { kpis, schemes } = agg;
+  const statusLabel = (st, loading) => {
+    if (loading) return "scraping…";
+    if (st.status === "ok") return `live · ${timeAgo(st.scraped_at)}`;
+    if (st.status === "fallback") return `fallback · ${timeAgo(st.scraped_at)}`;
+    return "pending";
+  };
 
   const Spark = ({ data=[], color="#f97316" }) => {
     if (!data||data.length<2) return <div style={{ width:100, height:44, background:`${color}08`, borderRadius:6 }}/>;
@@ -447,7 +454,7 @@ function DashboardTab({ agg, srcStatus, onScrapeAll, onScrapeOne, scraping, budg
           const s=SRC[sid]; const st=srcStatus[sid]||{}; const loading=scraping[sid];
           return (
             <div key={sid} style={{ background:"white", borderRadius:12,
-              border:`1px solid ${st.status==="ok"?s.color+"30":"#e5e7eb"}`, padding:"12px 14px" }}>
+              border:`1px solid ${isReadyStatus(st.status)?s.color+"30":"#e5e7eb"}`, padding:"12px 14px" }}>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5 }}>
                 <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                   <span>{s.icon}</span>
@@ -463,9 +470,14 @@ function DashboardTab({ agg, srcStatus, onScrapeAll, onScrapeOne, scraping, budg
               <div style={{ display:"flex", alignItems:"center", gap:5, marginTop:5 }}>
                 <StatusDot status={loading?"loading":st.status} animating={!!loading}/>
                 <span style={{ fontSize:11, color:"#9ca3af" }}>
-                  {loading?"scraping…":st.status==="ok"?`live · ${timeAgo(st.scraped_at)}`:"pending"}
+                  {statusLabel(st, loading)}
                 </span>
               </div>
+              {st.note && (
+                <div style={{ fontSize:10, color:"#94a3b8", marginTop:5, lineHeight:1.35 }}>
+                  {st.note}
+                </div>
+              )}
             </div>
           );
         })}
@@ -1097,7 +1109,7 @@ function SchemesTab({ agg, onScrapeAll, rajrasData, jansoochnaData }) {
 // ── Portals Tab ───────────────────────────────────────────────────────────────
 function PortalsTab({ agg, onScrapeAll }) {
   if (!agg?.portals?.length) return <EmptyState onScrape={onScrapeAll}/>;
-  const { portals } = agg;
+  const portals = (agg.portals || []).map((portal, index) => normalizePortalRecord(portal, index)).filter(Boolean);
   const groups = {};
   portals.forEach(p=>{ const c=p.category||"General"; if(!groups[c])groups[c]=[]; groups[c].push(p); });
   const totalPortals=portals.length, totalCategories=Object.keys(groups).length;
@@ -1680,6 +1692,7 @@ export default function App() {
   const TABS=[
     {id:"dashboard",label:"Dashboard",icon:"◉"},
     {id:"schemes",label:"Schemes",icon:"⊞",badge:totalSchemes||null},
+    {id:"portals",label:"IGOD Portals",icon:"🏛️",badge:totalPortals||null},
     {id:"budget",label:"Budget Data",icon:"₹"},
     {id:"districts",label:"Districts",icon:"🗺️"},
     {id:"alerts",label:"Live Alerts",icon:"⚡",badge:criticalCount||null},
@@ -1742,13 +1755,13 @@ export default function App() {
             const st=srcStatus[sid]||{};
             return (
               <div key={sid} style={{ display:"flex", alignItems:"center", gap:6,
-                background:st.status==="ok"?`${s.color}10`:"#f1f5f9",
-                border:`1px solid ${st.status==="ok"?s.color+"30":"#e5e7eb"}`,
+                background:isReadyStatus(st.status)?`${s.color}10`:"#f1f5f9",
+                border:`1px solid ${isReadyStatus(st.status)?s.color+"30":"#e5e7eb"}`,
                 borderRadius:6, padding:"4px 10px", fontSize:11, whiteSpace:"nowrap" }}>
                 <StatusDot status={scraping[sid]?"loading":st.status||"idle"} animating={!!scraping[sid]}/>
                 <span style={{ fontWeight:600, color:"#374151" }}>{s.icon} {s.label}</span>
                 {st.count>0&&<span style={{ color:s.color, fontWeight:800 }}>{st.count}</span>}
-                {st.scraped_at&&<span style={{ color:"#94a3b8" }}>{timeAgo(st.scraped_at)}</span>}
+                {st.scraped_at&&<span style={{ color:"#94a3b8" }}>{st.status==="fallback"?"fallback ":""}{timeAgo(st.scraped_at)}</span>}
               </div>
             );
           })}
@@ -1830,6 +1843,7 @@ export default function App() {
           scraping={scraping} scrapingAll={scrapingAll} online={online}
           budget={budget} budgetLoading={budgetLoading}/>}
         {tab==="schemes"&&<SchemesTab agg={agg} rajrasData={rajrasData} jansoochnaData={jansoochnaData} onScrapeAll={scrapeAll}/>}
+        {tab==="portals"&&<PortalsTab agg={agg} onScrapeAll={scrapeAll}/>}
         {tab==="budget"&&<BudgetDataTab budget={budget} budgetLoading={budgetLoading}
           onRefresh={()=>{ setBudget(null); setBudgetLoading(true);
             fetch(`${API}/budget?refresh=true`).then(r=>r.json()).then(d=>{setBudget(d);setBudgetLoading(false);}).catch(()=>setBudgetLoading(false)); }}/>}

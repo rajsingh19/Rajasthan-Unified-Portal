@@ -11,7 +11,11 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from scrapers.igod_scraper       import scrape_igod
+from scrapers.igod_scraper       import (
+    OUTPUT_PATH as IGOD_OUTPUT_PATH,
+    scrape_igod as scrape_igod_live,
+    save_json as save_igod_json,
+)
 from scrapers.rajras_scraper     import scrape_rajras
 from scrapers.jansoochna_full_scraper import (
     OUTPUT_PATH as JANSOOCHNA_OUTPUT_PATH,
@@ -19,7 +23,11 @@ from scrapers.jansoochna_full_scraper import (
     save_json as save_jansoochna_json,
 )
 from scrapers.jansoochna_scraper import scrape_jansoochna as scrape_jansoochna_basic
-from scrapers.myscheme_scraper   import scrape_myscheme
+from scrapers.myscheme_scraper   import (
+    OUTPUT_PATH as MYSCHEME_OUTPUT_PATH,
+    scrape_myscheme as scrape_myscheme_live,
+    save_json as save_myscheme_json,
+)
 from scrapers.budget_scraper     import scrape_budget
 from scrapers.jjm_scraper        import scrape_jjm
 
@@ -30,10 +38,9 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app_: FastAPI):
-    """Auto-scrape all sources + JJM districts on startup."""
-    log.info("🚀 Startup: kicking off background scrape of all sources + JJM districts...")
-    async def _scrape_all(): await asyncio.gather(*[_run(sid, fn) for sid, fn in SCRAPERS.items()])
-    asyncio.create_task(_scrape_all())
+    """Load cached JSON datasets on startup and warm JJM in background."""
+    log.info("🚀 Startup: loading cached datasets and warming JJM cache...")
+    _preload_cached_sources()
 
     async def _fetch_jjm_startup():
         data = await asyncio.to_thread(scrape_jjm)
@@ -51,6 +58,54 @@ app = FastAPI(title="Rajasthan Dashboard API v3", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 _cache: dict = {}
+
+def _load_json_list(path: Path):
+    if not path.exists():
+        return []
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, list) else []
+    except Exception as exc:
+        log.warning("Could not load JSON from %s: %s", path, exc)
+        return []
+
+def _derive_source_meta(data):
+    if not isinstance(data, list) or not data:
+        return {"mode": None, "fetch_method": None, "note": ""}
+
+    modes = {item.get("source_mode") for item in data if isinstance(item, dict) and item.get("source_mode")}
+    methods = [item.get("fetch_method") for item in data if isinstance(item, dict) and item.get("fetch_method")]
+    notes = [item.get("source_note") for item in data if isinstance(item, dict) and item.get("source_note")]
+
+    mode = None
+    if modes == {"fallback"}:
+        mode = "fallback"
+    elif "live" in modes:
+        mode = "live"
+    elif modes:
+        mode = sorted(modes)[0]
+
+    return {
+        "mode": mode,
+        "fetch_method": methods[0] if methods else None,
+        "note": notes[0] if notes else "",
+    }
+
+
+def _preload_from_file(source_id: str, path: Path):
+    data = _load_json_list(path)
+    if not data:
+        return
+    _store(source_id, data, "ok")
+    log.info("Loaded %d cached %s records from %s", len(data), source_id, path.name)
+
+
+def _preload_cached_sources():
+    _preload_from_file("igod", IGOD_OUTPUT_PATH)
+    _preload_from_file("myscheme", MYSCHEME_OUTPUT_PATH)
+    _preload_from_file("jansoochna", JANSOOCHNA_OUTPUT_PATH)
+
 def scrape_jansoochna():
     """Prefer full dataset scraping, but never let an empty run wipe out usable data."""
     try:
@@ -69,6 +124,28 @@ def scrape_jansoochna():
             log.warning("Could not persist fallback Jan Soochna dataset: %s", exc)
     return data
 
+
+def scrape_igod():
+    """Scrape IGOD and persist the latest dataset to backend/data."""
+    data = scrape_igod_live()
+    if data:
+        try:
+            save_igod_json(data, IGOD_OUTPUT_PATH)
+        except Exception as exc:
+            log.warning("Could not persist IGOD dataset: %s", exc)
+    return data
+
+
+def scrape_myscheme():
+    """Scrape MyScheme and persist the latest dataset to backend/data."""
+    data = scrape_myscheme_live()
+    if data:
+        try:
+            save_myscheme_json(data, MYSCHEME_OUTPUT_PATH)
+        except Exception as exc:
+            log.warning("Could not persist MyScheme dataset: %s", exc)
+    return data
+
 SCRAPERS = {
     "igod":       scrape_igod,
     "rajras":     scrape_rajras,
@@ -80,12 +157,17 @@ JJM_CACHE_KEY    = "jjm"
 
 # ── scrape helpers ─────────────────────────────────────────────────────────────
 def _store(sid, data, status="ok", error=""):
+    source_meta = _derive_source_meta(data)
+    stored_status = "fallback" if status == "ok" and source_meta["mode"] == "fallback" else status
     _cache[sid] = {
         "source_id": sid,
         "data": data,
-        "status": status,
+        "status": stored_status,
         "error": error,
         "count": len(data) if isinstance(data, list) else 0,
+        "mode": source_meta["mode"],
+        "fetch_method": source_meta["fetch_method"],
+        "note": source_meta["note"],
         "scraped_at": datetime.utcnow().isoformat() + "Z",
     }
 
@@ -112,6 +194,9 @@ def status():
                 "status":     _cache.get(sid, {}).get("status", "not_scraped"),
                 "count":      _cache.get(sid, {}).get("count", 0),
                 "scraped_at": _cache.get(sid, {}).get("scraped_at"),
+                "mode":       _cache.get(sid, {}).get("mode"),
+                "fetch_method": _cache.get(sid, {}).get("fetch_method"),
+                "note":       _cache.get(sid, {}).get("note", ""),
             }
             for sid in SCRAPERS
         }
@@ -120,7 +205,7 @@ def status():
 @app.post("/scrape/all")
 async def scrape_all():
     results = await asyncio.gather(*[_run(sid, fn) for sid, fn in SCRAPERS.items()])
-    return {"results": {r["source_id"]: {"status": r["status"], "count": r["count"]} for r in results}}
+    return {"results": {r["source_id"]: {"status": r["status"], "count": r["count"], "mode": r.get("mode")} for r in results}}
 
 @app.post("/scrape/{source_id}")
 async def scrape_one(source_id: str):
@@ -165,7 +250,16 @@ def get_data(source_id: str, limit: Optional[int] = None):
     if source_id not in SCRAPERS:
         raise HTTPException(404)
     if source_id not in _cache:
-        raise HTTPException(404, f"No data yet — POST /scrape/{source_id} first")
+        if source_id == "igod":
+            file_data = _load_json_list(IGOD_OUTPUT_PATH)
+            if file_data:
+                _store("igod", file_data, "ok")
+        elif source_id == "myscheme":
+            file_data = _load_json_list(MYSCHEME_OUTPUT_PATH)
+            if file_data:
+                _store("myscheme", file_data, "ok")
+        if source_id not in _cache:
+            raise HTTPException(404, f"No data yet — POST /scrape/{source_id} first")
     entry = _cache[source_id]
     data = entry["data"][:limit] if limit else entry["data"]
     return {**entry, "data": data}
@@ -289,10 +383,10 @@ def aggregate():
     Merges all 4 sources into structured sections.
     ZERO hardcoded data — everything comes from scraper output.
     """
-    igod_raw  = _cache.get("igod",       {}).get("data", [])
+    igod_raw  = _cache.get("igod",       {}).get("data", []) or _load_json_list(IGOD_OUTPUT_PATH)
     rr_raw    = _cache.get("rajras",      {}).get("data", [])
     jsp_raw   = _cache.get("jansoochna",  {}).get("data", [])
-    ms_raw    = _cache.get("myscheme",    {}).get("data", [])
+    ms_raw    = _cache.get("myscheme",    {}).get("data", []) or _load_json_list(MYSCHEME_OUTPUT_PATH)
 
     # ── 1. Schemes — tag source then enrich with parsed budget/beneficiary fields
     schemes = [
@@ -354,6 +448,9 @@ def aggregate():
             "count":      _cache.get(sid, {}).get("count", 0),
             "scraped_at": _cache.get(sid, {}).get("scraped_at"),
             "error":      _cache.get(sid, {}).get("error", ""),
+            "mode":       _cache.get(sid, {}).get("mode"),
+            "fetch_method": _cache.get(sid, {}).get("fetch_method"),
+            "note":       _cache.get(sid, {}).get("note", ""),
         }
         for sid in SCRAPERS
     }
@@ -382,17 +479,19 @@ def _build_alerts(schemes, portals, igod_raw):
     """
     alerts = []
 
+    def _scheme_name(s):
+        return (
+            s.get("name")
+            or s.get("scheme_name")
+            or s.get("organization_name")
+            or s.get("title")
+            or "Unknown"
+        )
+
     # ── Health schemes
     health = [s for s in schemes if re.search(r"health|medical|ayush|chiranjeevi|dawa|hospital", s.get("category", ""), re.I)]
     if health:
-        names = ", ".join(
-    s.get("name") 
-    or s.get("scheme_name") 
-    or s.get("organization_name") 
-    or s.get("title") 
-    or "Unknown"
-    for s in health[:3]
-)
+        names = ", ".join(_scheme_name(s) for s in health[:3])
         alerts.append({
             "id": "alert_health", "type": "ACTION", "severity": "Action", "icon": "🏥",
             "title": f"{len(health)} Health Schemes Active — Rajasthan",
@@ -406,7 +505,7 @@ def _build_alerts(schemes, portals, igod_raw):
     # ── Agriculture
     agri = [s for s in schemes if re.search(r"agri|kisan|farm|crop|horticulture", s.get("category", ""), re.I)]
     if agri:
-        names = ", ".join(s["name"] for s in agri[:3])
+        names = ", ".join(_scheme_name(s) for s in agri[:3])
         alerts.append({
             "id": "alert_agri", "type": "INSIGHT", "severity": "Insight", "icon": "🌾",
             "title": f"{len(agri)} Agriculture Schemes Found",
@@ -420,7 +519,7 @@ def _build_alerts(schemes, portals, igod_raw):
     # ── Social welfare
     social = [s for s in schemes if re.search(r"social|pension|welfare|palanhar", s.get("category", ""), re.I)]
     if social:
-        names = ", ".join(s["name"] for s in social[:3])
+        names = ", ".join(_scheme_name(s) for s in social[:3])
         alerts.append({
             "id": "alert_social", "type": "ACTION", "severity": "Action", "icon": "🛡️",
             "title": f"{len(social)} Social Welfare Schemes — Beneficiary Verification Needed",
@@ -447,7 +546,7 @@ def _build_alerts(schemes, portals, igod_raw):
     # ── Water & Sanitation schemes
     water = [s for s in schemes if re.search(r"water|jal|sanitation|swachh", s.get("category", ""), re.I)]
     if water:
-        names = ", ".join(s["name"] for s in water[:2])
+        names = ", ".join(_scheme_name(s) for s in water[:2])
         alerts.append({
             "id": "alert_water", "type": "CRITICAL", "severity": "Critical", "icon": "🚨",
             "title": f"JJM Coverage Gap — {len(water)} Water Schemes Tracked",

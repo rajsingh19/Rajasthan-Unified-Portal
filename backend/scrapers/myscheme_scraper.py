@@ -1,26 +1,31 @@
 """
-myscheme_scraper.py - Improved V3
-Tries multiple API variations with specific headers and fallback data parsing
-for the highly protected MyScheme.gov.in architecture.
+myscheme_scraper.py - Improved V4
+Tries multiple API/HTML extraction paths and explicitly marks whether the
+returned dataset is live or fallback.
 """
 import re, json, logging, requests, urllib3
 import urllib.parse
 from datetime import datetime, timezone
+from pathlib import Path
 
 urllib3.disable_warnings()
 log = logging.getLogger("scraper.myscheme")
 
 BASE_URL = "https://www.myscheme.gov.in"
 API_BASE = "https://api.myscheme.gov.in"
+OUTPUT_PATH = Path(__file__).resolve().parents[1] / "data" / "myscheme_schemes.json"
 
-# We supply an extracted static x-api-key for v6
-HEADERS = {
+BASE_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
     "Accept": "application/json, text/plain, */*",
     "Accept-Language": "en-IN,en;q=0.9",
-    "x-api-key": "tYTy5eEhlu9rFjyxuCr7ra7ACp4dv1RH8gWuHTDc", 
     "Origin": BASE_URL, 
     "Referer": f"{BASE_URL}/search/state/Rajasthan",
+}
+API_KEY_HEADERS = {
+    **BASE_HEADERS,
+    # MyScheme has historically required a client key for some search endpoints.
+    "x-api-key": "tYTy5eEhlu9rFjyxuCr7ra7ACp4dv1RH8gWuHTDc",
 }
 
 CAT_MAP = {
@@ -45,7 +50,7 @@ def _category(text):
         if re.search(pat, t, re.I): return cat
     return "General"
 
-def _normalize(src, i, ts):
+def _normalize(src, i, ts, source_mode="live", fetch_method="unknown", source_note=""):
     """Clean and normalize a raw dict from the API or __NEXT_DATA__ into our JSON output format"""
     source_data = src.get("_source", src)
     
@@ -85,9 +90,64 @@ def _normalize(src, i, ts):
         "launched": str(launched)[:10] if launched else "",
         "state": "Rajasthan",
         "status": "Active",
-        "source": "myscheme.gov.in",
+        "source": "myscheme.gov.in" if source_mode == "live" else "myscheme.gov.in (fallback)",
+        "source_mode": source_mode,
+        "fetch_method": fetch_method,
+        "source_note": source_note or ("Live MyScheme data" if source_mode == "live" else "Curated fallback dataset"),
         "scraped_at": ts,
     }
+
+
+def _extract_hits(data):
+    if isinstance(data, list):
+        return data
+    if not isinstance(data, dict):
+        return []
+
+    candidates = [
+        data.get("hits", {}).get("hits") if isinstance(data.get("hits"), dict) else None,
+        data.get("schemes"),
+        data.get("data"),
+        data.get("results"),
+        data.get("items"),
+    ]
+    for candidate in candidates:
+        if isinstance(candidate, list) and len(candidate) > 2:
+            return candidate
+        if isinstance(candidate, dict):
+            for nested_key in ("schemes", "items", "results"):
+                nested = candidate.get(nested_key)
+                if isinstance(nested, list) and len(nested) > 2:
+                    return nested
+    return []
+
+
+def _extract_next_data_schemes(next_data):
+    if not isinstance(next_data, dict):
+        return []
+
+    stack = [next_data]
+    seen = set()
+    while stack:
+        node = stack.pop()
+        node_id = id(node)
+        if node_id in seen:
+            continue
+        seen.add(node_id)
+
+        if isinstance(node, dict):
+            for key in ("schemes", "items", "results"):
+                value = node.get(key)
+                if isinstance(value, list) and len(value) > 2:
+                    return value
+            stack.extend(v for v in node.values() if isinstance(v, (dict, list)))
+        elif isinstance(node, list):
+            if len(node) > 2 and all(isinstance(item, dict) for item in node):
+                sample = node[0]
+                if any(k in sample for k in ("schemeName", "title", "name", "slug", "_source")):
+                    return node
+            stack.extend(v for v in node if isinstance(v, (dict, list)))
+    return []
 
 def scrape_myscheme():
     """Main fetching logic connecting resilient methodology."""
@@ -100,51 +160,55 @@ def scrape_myscheme():
 
     # Note: Modern MyScheme aggressively 401/403s bots. We implement multiple potential endpoints.
     api_urls = [
-        # Modern v6
-        {"url": f"{API_BASE}/search/v6/schemes?lang=en&q={encoded_q}&keyword=&sort=multiple_sort&from=0&size=100", "method": "GET"},
-        # Modern Post Search
-        {"url": f"{API_BASE}/search/v4/schemes?lang=en&q=&from=0&size=100", "method": "POST", "json": {"state": "Rajasthan"}},
-        # Legacy v4 GET with payload
-        {"url": f"{API_BASE}/search/v4/schemes?lang=en&filters=state:Rajasthan&from=0&size=100", "method": "GET"}
+        {"url": f"{API_BASE}/search/v6/schemes?lang=en&q={encoded_q}&keyword=&sort=multiple_sort&from=0&size=100", "method": "GET", "headers": API_KEY_HEADERS},
+        {"url": f"{API_BASE}/search/v6/schemes?lang=en&q={encoded_q}&keyword=&sort=multiple_sort&from=0&size=100", "method": "GET", "headers": BASE_HEADERS},
+        {"url": f"{API_BASE}/search/v5/schemes?lang=en&q={encoded_q}&keyword=&from=0&size=100", "method": "GET", "headers": API_KEY_HEADERS},
+        {"url": f"{API_BASE}/search/v4/schemes?lang=en&q=&from=0&size=100", "method": "POST", "json": {"state": "Rajasthan"}, "headers": API_KEY_HEADERS},
+        {"url": f"{API_BASE}/search/v4/schemes?lang=en&filters=state:Rajasthan&from=0&size=100", "method": "GET", "headers": API_KEY_HEADERS},
     ]
     
     for attempt in api_urls:
         try:
+            headers = attempt.get("headers", BASE_HEADERS)
             if attempt["method"] == "GET":
-                r = session.get(attempt["url"], headers=HEADERS, timeout=10, verify=False)
+                r = session.get(attempt["url"], headers=headers, timeout=10, verify=False)
             else:
-                r = session.post(attempt["url"], headers=HEADERS, json=attempt.get("json", {}), timeout=10, verify=False)
+                r = session.post(attempt["url"], headers=headers, json=attempt.get("json", {}), timeout=10, verify=False)
                 
             if r.status_code == 200:
                 data = r.json()
-                hits = (data.get("hits", {}).get("hits") or
-                        data.get("schemes") or data.get("data") or
-                        (data if isinstance(data, list) else None))
+                hits = _extract_hits(data)
                 if hits and len(hits) > 2:
                     log.info("MyScheme API OK: %d schemes extracted via %s", len(hits), attempt["url"][:80])
-                    return [_normalize(h, i, ts) for i, h in enumerate(hits)]
+                    return [_normalize(h, i, ts, source_mode="live", fetch_method="api", source_note=attempt["url"]) for i, h in enumerate(hits)]
         except Exception as e:
             log.debug("MyScheme API route %s generated an exception: %s", attempt["url"][:60], e)
 
-    # Fallback to pure HTML Next.js hydration data extraction
+    # Fallback to HTML/Next.js hydration data extraction, which is still live data.
     try:
         html_url = f"{BASE_URL}/search/state/Rajasthan"
-        html_headers = {**HEADERS, "Accept": "text/html"}
+        html_headers = {**BASE_HEADERS, "Accept": "text/html"}
         r = session.get(html_url, headers=html_headers, timeout=10, verify=False)
         m = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', r.text, re.S)
         if m:
             next_data = json.loads(m.group(1))
-            props = next_data.get("props", {}).get("pageProps", {})
-            schemes_data = props.get("schemes") or props.get("data", {}).get("schemes") or []
+            schemes_data = _extract_next_data_schemes(next_data)
             
             if schemes_data and len(schemes_data) > 2:
                 log.info("MyScheme __NEXT_DATA__ fallback triggered: %d schemes extracted", len(schemes_data))
-                return [_normalize(s, i, ts) for i, s in enumerate(schemes_data)]
+                return [_normalize(s, i, ts, source_mode="live", fetch_method="html", source_note=html_url) for i, s in enumerate(schemes_data)]
     except Exception as e:
         log.error("MyScheme HTML extraction fail: %s", e)
 
     log.warning("MyScheme: all live fetching methods failed (blocked by 403 API), serving precise fallback dataset.")
     return _fallback(ts)
+
+
+def save_json(data, output_path=OUTPUT_PATH):
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    log.info("Saved %d MyScheme rows to %s", len(data), output_path)
 
 def _fallback(ts):
     """
@@ -193,5 +257,8 @@ def _fallback(ts):
         "state": "Rajasthan", 
         "status": "Active",
         "source": "myscheme.gov.in (fallback)", 
+        "source_mode": "fallback",
+        "fetch_method": "curated_fallback",
+        "source_note": "Curated Rajasthan-focused fallback dataset",
         "scraped_at": ts,
     } for i, (n, c, m, b, e, slug) in enumerate(schemes)]
