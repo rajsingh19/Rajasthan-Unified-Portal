@@ -8,7 +8,10 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import axios from "axios";
+import WelfareSchemeCard , { PlatformKPIBanner } from "./WelfareSchemeCard"
+import { WELFARE_SCHEMES, PLATFORM_KPIS } from "../data/welfareSchemeData"
 import InsightsEngine from "../InsightsEngine";
+// import DashboardTab, { AppSidebar, AppTopBar } from "../DashboardTab_redesign";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   Cell, PieChart, Pie,
@@ -21,10 +24,10 @@ const API =
     : "https://rajasthan-cgwj.onrender.com");
 
 const SRC = {
-  igod:       { label: "IGOD Directory", icon: "🏛️", color: "#f97316", url: "https://igod.gov.in/sg/RJ/SPMA/organizations" },
-  rajras:     { label: "RajRAS",       icon: "📋", color: "#3b82f6", url: "https://rajras.in" },
-  jansoochna: { label: "Jan Soochna",  icon: "👁️", color: "#10b981", url: "https://jansoochna.rajasthan.gov.in" },
-  myscheme:   { label: "MyScheme",     icon: "🔍", color: "#8b5cf6", url: "https://myscheme.gov.in" },
+  igod:       { label: "IGOD Directory", icon: "🏛️", color: "#9c3f00", url: "https://igod.gov.in/sg/RJ/SPMA/organizations" },
+  rajras:     { label: "RajRAS",         icon: "📋", color: "#005ea4", url: "https://rajras.in" },
+  jansoochna: { label: "Jan Soochna",    icon: "👁️", color: "#1E6B45", url: "https://jansoochna.rajasthan.gov.in" },
+  myscheme:   { label: "MyScheme",       icon: "🔍", color: "#594237", url: "https://myscheme.gov.in" },
 };
 const CAT_ICON = {
   "Health":"🏥","Health & Family Welfare":"🏥","Education":"🎓","Agriculture":"🌾",
@@ -42,23 +45,70 @@ const PALETTE = ["#ef4444","#3b82f6","#10b981","#f97316","#8b5cf6","#f59e0b",
                  "#06b6d4","#84cc16","#ec4899","#14b8a6","#6366f1","#a855f7",
                  "#f43f5e","#0ea5e9","#22c55e","#e11d48","#0284c7","#059669"];
 const THEME = {
-  saffron: "#e56a1f",
-  saffronDeep: "#b74a15",
-  sandstone: "#f7efe2",
-  desertRose: "#fff5ef",
-  peacock: "#0f7c97",
-  peacockSoft: "#e9f8fb",
-  indigo: "#3657c8",
-  indigoSoft: "#edf2ff",
-  emerald: "#0f9f6e",
-  emeraldSoft: "#ecfdf5",
-  ink: "#102033",
-  muted: "#66758a",
-  border: "#e6ebf2",
-  panel: "rgba(255,255,255,0.84)",
-  panelSolid: "#ffffff",
-  shadow: "0 20px 48px rgba(15,23,42,0.08)",
+  background:             "#fff8f3",
+  surface:                "#fff8f3",
+  surfaceContainerLowest: "#ffffff",
+  surfaceContainerLow:    "#faf2ea",
+  surfaceContainer:       "#f5ede4",
+  surfaceContainerHigh:   "#efe7df",
+  surfaceContainerHighest:"#e9e1d9",
+  primary:                "#9c3f00",
+  primaryContainer:       "#c45100",
+  primaryFixed:           "#ffdbcc",
+  primaryFixedDim:        "#ffb693",
+  onPrimary:              "#ffffff",
+  secondary:              "#a23f00",
+  secondaryContainer:     "#fe7a37",
+  tertiary:               "#005ea4",
+  onSurface:              "#1e1b16",
+  onSurfaceVariant:       "#594237",
+  outline:                "#8c7165",
+  outlineVariant:         "#e0c0b2",
+  error:                  "#ba1a1a",
+  errorContainer:         "#ffdad6",
+  statusSuccess:          "#1E6B45",
+  statusWarning:          "#c45100",
+  inverseSurface:         "#34302b",
+  inverseOnSurface:       "#f8efe7",
+  shadowSm: "0px 24px 48px -12px rgba(53,16,0,0.04)",
+  shadowMd: "0px 24px 48px -12px rgba(53,16,0,0.08)",
 };
+
+// ── Font injection (run once) ─────────────────────────────────────────────
+let _fontsInjected = false;
+function injectDesignFonts() {
+  if (_fontsInjected || typeof document === "undefined") return;
+  _fontsInjected = true;
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = "https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&family=Manrope:wght@200..800&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap";
+  document.head.appendChild(link);
+  const icons = document.createElement("link");
+  icons.rel = "stylesheet";
+  icons.href = "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap";
+  document.head.appendChild(icons);
+  const style = document.createElement("style");
+  style.textContent = `
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family:'Manrope',sans-serif; background:#fff8f3; color:#1e1b16; -webkit-font-smoothing:antialiased; }
+    .ds-headline { font-family:'Newsreader',serif !important; }
+    .ds-mono     { font-family:'IBM Plex Mono',monospace !important; }
+    .ds-icon      { font-family:'Material Symbols Outlined'; font-variation-settings:'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 24; font-size:20px; line-height:1; display:inline-block; }
+    .ds-icon-fill { font-family:'Material Symbols Outlined'; font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24; font-size:20px; line-height:1; display:inline-block; }
+    @keyframes ds-fadein { from{opacity:0;transform:translateY(8px);} to{opacity:1;transform:translateY(0);} }
+    @keyframes ds-spin { to{transform:rotate(360deg);} }
+    .ds-fadein   { animation:ds-fadein 0.4s ease both; }
+    .ds-fadein-1 { animation:ds-fadein 0.4s 0.06s ease both; }
+    .ds-fadein-2 { animation:ds-fadein 0.4s 0.12s ease both; }
+    .ds-fadein-3 { animation:ds-fadein 0.4s 0.18s ease both; }
+    .ds-fadein-4 { animation:ds-fadein 0.4s 0.24s ease both; }
+    .ds-card-lift { transition:box-shadow 0.2s ease,transform 0.2s ease; }
+    .ds-card-lift:hover { transform:translateY(-2px); box-shadow:0px 32px 64px -16px rgba(53,16,0,0.10) !important; }
+    .ds-alert-hover { transition:transform 0.18s ease; }
+    .ds-alert-hover:hover { transform:translateX(4px); }
+  `;
+  document.head.appendChild(style);
+}
 
 // ── Pill category definitions — regex matches actual scraped category strings ─
 const PILL_CATS = [
@@ -629,8 +679,8 @@ function Chip({ label, color="#6b7280", small }) {
 function ScrapeNowButton({ onClick, loading, disabled }) {
   return (
     <button onClick={onClick} disabled={loading||disabled} style={{
-      background:(loading||disabled)?"#e5e7eb":"#f97316",
-      color:(loading||disabled)?"#9ca3af":"white",
+      background:(loading||disabled)?"#efe7df":`linear-gradient(135deg,#9c3f00,#c45100)`,
+      color:(loading||disabled)?"#594237":"white",
       borderRadius:10, padding:"10px 22px", fontWeight:800, fontSize:13,
       display:"flex", alignItems:"center", gap:8,
       boxShadow:(!loading&&!disabled)?"0 2px 12px #f9731640":"none",
@@ -813,8 +863,8 @@ function DashboardTab({ agg, srcStatus, onScrapeAll, onScrapeOne, scraping, budg
   return (
     <div className="fadeup">
       <div style={{
-        background:`linear-gradient(135deg, ${THEME.desertRose} 0%, #fffdf8 42%, ${THEME.peacockSoft} 100%)`,
-        border:`1px solid ${THEME.border}`,
+        background:"#fff8f3",
+        border:"1px solid #e0c0b240",
         borderRadius:30,
         padding:"clamp(18px, 3vw, 26px)",
         marginBottom:22,
@@ -846,7 +896,7 @@ function DashboardTab({ agg, srcStatus, onScrapeAll, onScrapeOne, scraping, budg
             display:"inline-flex", alignItems:"center", gap:8,
             padding:"7px 14px", borderRadius:999,
             background:"#fff1df", border:"1px solid #ffd2aa",
-            color:THEME.saffronDeep, fontSize:12, fontWeight:800, letterSpacing:"0.04em",
+            color:"#9c3f00", fontSize:12, fontWeight:800, letterSpacing:"0.04em",
           }}>
             Rajasthan Executive Dashboard
           </span>
@@ -854,7 +904,7 @@ function DashboardTab({ agg, srcStatus, onScrapeAll, onScrapeOne, scraping, budg
             display:"inline-flex", alignItems:"center",
             padding:"7px 14px", borderRadius:999,
             background:"rgba(255,255,255,0.7)", border:`1px solid ${THEME.border}`,
-            color:THEME.peacock, fontSize:12, fontWeight:800,
+            color:"#005ea4", fontSize:12, fontWeight:800,
           }}>
             Saffron · Peacock · Sandstone theme
           </span>
@@ -862,10 +912,10 @@ function DashboardTab({ agg, srcStatus, onScrapeAll, onScrapeOne, scraping, budg
         </div>
         <div style={{ display:"flex", justifyContent:"space-between", gap:20, alignItems:"flex-start", flexWrap:"wrap", position:"relative" }}>
           <div style={{ flex:"1 1 420px", minWidth:0, maxWidth:760 }}>
-            <h1 style={{ fontSize:"clamp(26px, 4vw, 34px)", fontWeight:900, color:THEME.ink, margin:"0 0 8px", letterSpacing:"-0.05em", lineHeight:1.04 }}>
-              Rajasthan Governance Snapshot for <span style={{ color:THEME.saffron }}>Mukhyamantri Ji</span>
+            <h1 style={{ fontSize:"clamp(26px, 4vw, 34px)", fontWeight:900, color:"#1e1b16", margin:"0 0 8px", letterSpacing:"-0.05em", lineHeight:1.04 }}>
+              Rajasthan Governance Snapshot for <span style={{ color:"#9c3f00" }}>Mukhyamantri Ji</span>
             </h1>
-            <p style={{ color:THEME.muted, fontSize:14, margin:"0 0 14px", lineHeight:1.7 }}>
+            <p style={{ color:"#594237", fontSize:14, margin:"0 0 14px", lineHeight:1.7 }}>
               A live, source-linked overview of schemes, portals, budget signals, district coverage, and alerting across Rajasthan government datasets.
             </p>
             <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
@@ -880,7 +930,7 @@ function DashboardTab({ agg, srcStatus, onScrapeAll, onScrapeOne, scraping, budg
               <span style={{
                 display:"inline-flex", alignItems:"center",
                 background:THEME.indigoSoft, border:"1px solid #cad6ff",
-                borderRadius:999, padding:"8px 14px", fontSize:12.5, fontWeight:700, color:THEME.indigo
+                borderRadius:999, padding:"8px 14px", fontSize:12.5, fontWeight:700, color:"#3657c8"
               }}>
                 {b.source || "Live government source data"}
               </span>
@@ -1088,6 +1138,24 @@ function DashboardTab({ agg, srcStatus, onScrapeAll, onScrapeOne, scraping, budg
           </div>
         </div>
       )}
+
+      {/* ── RajWelfare Schemes Section ── */}
+      <div style={{ marginTop: 28 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16 }}>
+          <span style={{ fontSize:22 }}>🌾</span>
+          <div>
+            <div style={{ fontWeight:900, fontSize:17, color:"#1f2937" }}>Welfare Scheme Performance</div>
+            <div style={{ fontSize:12, color:"#9ca3af", marginTop:1 }}>FY 2023–24 · Source: RajWelfare Transparency Docs</div>
+          </div>
+        </div>
+        <PlatformKPIBanner />
+        <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+          {WELFARE_SCHEMES.map(scheme => (
+            <WelfareSchemeCard key={scheme.id} scheme={scheme} />
+          ))}
+        </div>
+      </div>
+
     </div>
   );
 }
@@ -1582,125 +1650,150 @@ function SchemesTab({ agg, onScrapeAll, rajrasData, jansoochnaData }) {
 
   return (
     <div className="fadeup">
-      <div style={{
-        background:`linear-gradient(135deg, ${THEME.desertRose} 0%, #ffffff 44%, ${THEME.peacockSoft} 100%)`,
-        border:`1px solid ${THEME.border}`,
-        borderRadius:28,
-        padding:"22px 22px 18px",
-        marginBottom:20,
-        boxShadow:THEME.shadow,
-        position:"relative",
-        overflow:"hidden",
-      }}>
-        <div style={{
-          position:"absolute",
-          right:-30,
-          top:-42,
-          width:150,
-          height:150,
-          borderRadius:"50%",
-          background:"radial-gradient(circle, rgba(15,124,151,0.12), rgba(15,124,151,0))",
-          pointerEvents:"none",
-        }}/>
-        <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:20, flexWrap:"wrap", position:"relative" }}>
+      {/* ── Hero ── */}
+      <div style={{ marginBottom:32 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}>
+          <span style={{
+            fontFamily:"IBM Plex Mono,monospace", fontSize:10,
+            letterSpacing:"0.15em", color:"#9c3f00", fontWeight:700, textTransform:"uppercase",
+          }}>
+            System Intelligence Active
+          </span>
+          <span style={{ width:6, height:6, borderRadius:"50%", background:"#1E6B45", display:"inline-block" }}/>
+        </div>
+        <div style={{ display:"flex", alignItems:"flex-end", justifyContent:"space-between", gap:16, flexWrap:"wrap" }}>
           <div>
-            <div style={{ display:"inline-flex", alignItems:"center", gap:8, background:"#fff4e7", border:"1px solid #ffd5b2", color:THEME.saffronDeep, borderRadius:999, padding:"7px 13px", fontSize:12, fontWeight:800, marginBottom:12 }}>
-              Curated Scheme Intelligence
-            </div>
-            <div style={{ display:"flex", alignItems:"center", marginBottom:4 }}>
-              <h2 style={{ fontSize:28, fontWeight:900, margin:0, color:THEME.ink, letterSpacing:"-0.04em" }}>
-                Government Schemes
-                {" "}
-                <span style={{ color:THEME.saffron }}>Overview</span>
-              </h2>
-              <InfoTip text="Schemes from 3 sources: RajRAS (HTML scrape → name, eligibility, benefit), Jan Soochna (JSON API → name, dept, beneficiary count), MyScheme (REST API → name, ministry, tags, description). Categories are keyword-derived."/>
-            </div>
-            <p style={{ color:THEME.muted, fontSize:13.5, margin:"0 0 12px", lineHeight:1.7, maxWidth:760 }}>
-              {schemes.length} schemes scraped live from RajRAS, Jan Soochna, and MyScheme. Search, filter, and open any card for a source-linked briefing note.
+            <h2 style={{
+              fontFamily:"Newsreader,serif", fontSize:"clamp(32px,5vw,48px)",
+              fontWeight:700, color:"#1e1b16", margin:"0 0 8px", letterSpacing:"-0.5px", lineHeight:1.05,
+            }}>
+              Scheme Intelligence
+            </h2>
+            <p style={{ color:"#594237", fontSize:14, margin:0, fontWeight:500 }}>
+              {schemes.length} schemes tracked across 3 live primary sources.
             </p>
-            <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
-              <span style={{ display:"inline-flex", alignItems:"center", gap:8, borderRadius:999, padding:"8px 14px", background:"rgba(255,255,255,0.84)", border:`1px solid ${THEME.border}`, color:"#334155", fontSize:12.5, fontWeight:700 }}>
-                <span style={{ width:8, height:8, borderRadius:"50%", background:THEME.emerald, boxShadow:"0 0 0 3px #d1fae5", display:"inline-block" }}/>
-                Multi-source verified catalogue
-              </span>
-              <span style={{ display:"inline-flex", alignItems:"center", gap:8, borderRadius:999, padding:"8px 14px", background:THEME.indigoSoft, border:"1px solid #cad6ff", color:THEME.indigo, fontSize:12.5, fontWeight:700 }}>
-                Responsive briefing cards
-              </span>
-            </div>
           </div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(2, minmax(120px, 1fr))", gap:10, minWidth:260 }}>
-            {[
-              { value: schemes.length, label: "Total Schemes", color: THEME.saffron, bg: "#fff6ea" },
-              { value: filtered.length, label: "Visible Now", color: THEME.peacock, bg: "#eefbfd" },
-              { value: new Set(schemes.map((scheme) => scheme._src)).size, label: "Active Sources", color: THEME.emerald, bg: "#effcf5" },
-              { value: new Set(schemes.map((scheme) => scheme.category).filter(Boolean)).size, label: "Categories", color: THEME.indigo, bg: "#eef2ff" },
-            ].map((item) => (
-              <div key={item.label} style={{ background:item.bg, border:`1px solid ${item.color}22`, borderRadius:18, padding:"14px 15px" }}>
-                <div style={{ fontSize:24, fontWeight:900, color:item.color, lineHeight:1 }}>{item.value}</div>
-                <div style={{ fontSize:11, fontWeight:700, color:THEME.muted, marginTop:5 }}>{item.label}</div>
-              </div>
-            ))}
-          </div>
+          <button
+            onClick={onScrapeAll}
+            style={{
+              display:"flex", alignItems:"center", gap:8,
+              background:"linear-gradient(135deg,#9c3f00,#c45100)",
+              color:"#fff", borderRadius:99, padding:"10px 22px",
+              fontSize:13, fontWeight:700, border:"none", cursor:"pointer",
+              boxShadow:"0px 24px 48px -12px rgba(53,16,0,0.18)",
+              fontFamily:"Manrope,sans-serif",
+            }}
+          >
+            ⚡ AI Executive Summary
+          </button>
         </div>
       </div>
+
       {/* Search */}
-      <div style={{ position:"relative", marginBottom:12 }}>
-        <span style={{ position:"absolute", left:14, top:"50%",
-          transform:"translateY(-50%)", fontSize:15 }}>🔍</span>
-        <input value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="Search schemes, benefits, categories…"
-          style={{ width:"100%", padding:"11px 14px 11px 42px",
-            border:`1.5px solid ${THEME.border}`, borderRadius:16, fontSize:14,
-            background:"rgba(255,255,255,0.86)", boxSizing:"border-box",
-            boxShadow:"0 10px 26px rgba(15,23,42,0.04)" }}/>
+      <div style={{ position:"relative", marginBottom:20, maxWidth:"100%" }}>
+        <span style={{
+          position:"absolute", left:16, top:"50%", transform:"translateY(-50%)",
+          fontSize:20, color:"#8c7165", fontFamily:"Material Symbols Outlined",
+          fontVariationSettings:"'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24",
+          lineHeight:1,
+        }}>search</span>
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search by scheme name, department, or keyword..."
+          style={{
+            width:"100%", padding:"16px 20px 16px 52px",
+            border:"none", borderRadius:12, fontSize:14,
+            background:"#ffffff", boxSizing:"border-box",
+            color:"#1e1b16", fontFamily:"Manrope,sans-serif",
+            boxShadow:"0 2px 8px rgba(53,16,0,0.06)",
+            outline:"none",
+          }}
+          onFocus={e => { e.target.parentNode.querySelector(".search-underline").style.background="#9c3f00"; }}
+          onBlur={e  => { e.target.parentNode.querySelector(".search-underline").style.background="#e0c0b2"; }}
+        />
+        <div className="search-underline" style={{
+          position:"absolute", bottom:0, left:0, right:0,
+          height:2, background:"#e0c0b2", borderRadius:"0 0 12px 12px",
+          transition:"background 0.25s",
+        }}/>
       </div>
 
       {/* Source filter */}
-      <div style={{ display:"flex", gap:6, marginBottom:10, flexWrap:"wrap" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16, flexWrap:"wrap" }}>
+        <span style={{
+          fontSize:10, fontWeight:700, textTransform:"uppercase",
+          letterSpacing:"0.12em", color:"#8c7165", marginRight:4,
+          fontFamily:"Manrope,sans-serif",
+        }}>
+          Data Sources
+        </span>
         {["all","rajras","jansoochna","myscheme"].map(id => {
           const s = SRC[id];
+          const active = src === id;
+          const label = id === "all" ? "All" : s.label;
           return (
             <button key={id} onClick={() => setSrc(id)} style={{
-              background: src===id ? `linear-gradient(135deg, ${(s?.color||"#1f2937")}, ${(s?.color||"#1f2937")}dd)` : "rgba(255,255,255,0.9)",
-              color: src===id ? "white" : "#374151",
-              border:`1.5px solid ${src===id ? (s?.color||"#1f2937") : THEME.border}`,
-              borderRadius:999, padding:"7px 14px", fontSize:12, fontWeight:700,
-              cursor:"pointer",
-              boxShadow: src===id ? `0 10px 22px ${s?.color || "#1f2937"}22` : "none",
+              background: active ? "linear-gradient(135deg,#9c3f00,#c45100)" : "#ffffff",
+              color: active ? "#ffffff" : "#9c3f00",
+              border: active ? "none" : "1.5px solid #e0c0b2",
+              borderRadius:99, padding:"8px 20px", fontSize:13, fontWeight:700,
+              cursor:"pointer", fontFamily:"Manrope,sans-serif",
+              boxShadow: active ? "0px 24px 48px -12px rgba(53,16,0,0.18)" : "none",
+              transition:"all 0.15s ease",
             }}>
-              {id==="all" ? "All Sources" : `${s.icon} ${s.label}`}
+              {label}
             </button>
           );
         })}
       </div>
 
-      {/* Category pills */}
-      <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:16 }}>
-        {PILL_CATS.map(p => (
-          <button key={p.id} onClick={() => setCat(p.id)} style={{
-            background: cat===p.id ? `linear-gradient(135deg, ${THEME.saffron}, #f39b52)` : "rgba(255,255,255,0.88)",
-            color: cat===p.id ? "white" : "#374151",
-            border:`1.5px solid ${cat===p.id ? THEME.saffron : THEME.border}`,
-            borderRadius:999, padding:"7px 14px", fontSize:12.5, fontWeight:700,
-            cursor:"pointer", display:"flex", alignItems:"center", gap:5,
-            boxShadow: cat===p.id ? "0 10px 24px rgba(229,106,31,0.18)" : "none",
-          }}>
-            {p.icon && <span>{p.icon}</span>}
-            {p.label}
-          </button>
-        ))}
+      {/* Category pills — Focus Areas */}
+      <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", marginBottom:20 }}>
+        <span style={{
+          fontSize:10, fontWeight:700, textTransform:"uppercase",
+          letterSpacing:"0.12em", color:"#8c7165", marginRight:4,
+          fontFamily:"Manrope,sans-serif",
+        }}>
+          Focus Areas
+        </span>
+        {PILL_CATS.filter(p => p.id !== "all").map(p => {
+          const active = cat === p.id;
+          // Map pill ids to the category dot colors from the HTML design
+          const dotColors = {
+            health:"#f97316", education:"#10b981", agri:"#3b82f6", social:"#f97316",
+            labour:"#10b981", women:"#06b6d4", housing:"#8b5cf6", food:"#f97316",
+            water:"#3b82f6", energy:"#f59e0b", digital:"#6366f1", rural:"#84cc16", identity:"#a855f7",
+          };
+          const dot = dotColors[p.id] || "#9c3f00";
+          return (
+            <button key={p.id} onClick={() => setCat(cat === p.id ? "all" : p.id)} style={{
+              display:"flex", alignItems:"center", gap:8,
+              background: active ? "#ffffff" : "#ffffff",
+              color: active ? "#1e1b16" : "#594237",
+              border: active ? "1.5px solid #e0c0b2" : "1.5px solid transparent",
+              borderRadius:99, padding:"7px 16px", fontSize:12, fontWeight:700,
+              cursor:"pointer", fontFamily:"Manrope,sans-serif",
+              boxShadow: active ? "0 2px 8px rgba(53,16,0,0.08)" : "none",
+              transition:"all 0.15s ease",
+            }}>
+              <span style={{ width:8, height:8, borderRadius:"50%", background:dot, display:"inline-block", flexShrink:0 }}/>
+              {p.label}
+            </button>
+          );
+        })}
       </div>
 
-      <div style={{ color:"#9ca3af", fontSize:13, marginBottom:14 }}>
+      {/* <div style={{ color:"#9ca3af", fontSize:13, marginBottom:14 }}>
         Showing <strong style={{ color:"#374151" }}>{filtered.length}</strong> of {schemes.length} schemes
         {catMatch && <span> · <span style={{ color:"#f97316" }}>{activePill?.label}</span></span>}
-      </div>
+      </div> */}
 
       {/* 4-column card grid */}
       <div style={{
         display:"grid",
-        gridTemplateColumns:"repeat(auto-fit, minmax(280px, 1fr))",
-        gap:16,
+        gridTemplateColumns:"repeat(auto-fit, minmax(300px, 1fr))",
+        gap:28,
       }}>
         {filtered.map((scheme, i) => {
           const srcMeta    = SRC[scheme._src] || SRC.myscheme;
@@ -1738,132 +1831,135 @@ function SchemesTab({ agg, onScrapeAll, rajrasData, jansoochnaData }) {
           const availableStatCount = cardStats.filter((stat) => stat.val).length;
           const hasAnyMetric = availableStatCount > 0;
 
+          const availPct = cardProgressPct != null
+            ? cardProgressPct
+            : Math.round((cardStats.filter(s => s.val).length / cardStats.length) * 100);
+
+          // Category dot color — cycle through a warm editorial palette
+          const catDotColors = ["#f97316","#3b82f6","#8b5cf6","#10b981","#06b6d4","#f59e0b","#ec4899","#84cc16"];
+          const catDot = catDotColors[i % catDotColors.length];
+
           return (
-            <div key={i} onClick={() => setSelected(scheme)} style={{
-              background:"linear-gradient(180deg,rgba(255,255,255,0.98) 0%, rgba(250,252,255,0.98) 100%)", borderRadius:22, border:"1px solid #e5e7eb",
-              padding:"18px 18px 16px", borderTop:`4px solid ${srcMeta.color}`,
-              cursor:"pointer", boxShadow:"0 16px 34px rgba(15,23,42,0.06)",
-              transition:"box-shadow .15s, transform .12s",
-              display:"flex", flexDirection:"column", minHeight:242,
-              position:"relative", overflow:"hidden",
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.boxShadow = "0 22px 46px rgba(15,23,42,0.12)";
-              e.currentTarget.style.transform = "translateY(-4px)";
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.boxShadow = "0 16px 34px rgba(15,23,42,0.06)";
-              e.currentTarget.style.transform = "translateY(0)";
-            }}>
-              <div style={{
-                position:"absolute",
-                right:-18,
-                top:-28,
-                width:96,
-                height:96,
-                borderRadius:"50%",
-                background:`radial-gradient(circle, ${srcMeta.color}18, ${srcMeta.color}00)`,
-                pointerEvents:"none",
+            <div
+              key={i}
+              onClick={() => setSelected(scheme)}
+              style={{
+                position:"relative",
+                background:"#ffffff",
+                border:"1px solid #F0E8E0",
+                borderRadius:12,
+                padding:24,
+                cursor:"pointer",
+                overflow:"hidden",
+                display:"flex",
+                flexDirection:"column",
+                transition:"box-shadow 0.3s ease, transform 0.3s ease",
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.boxShadow = "0 20px 48px rgba(53,16,0,0.08)";
+                e.currentTarget.style.transform = "translateY(-4px)";
+                e.currentTarget.querySelector(".card-thread").style.opacity = "1";
+                e.currentTarget.querySelector(".card-name").style.color = "#9c3f00";
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.boxShadow = "none";
+                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.querySelector(".card-thread").style.opacity = "0";
+                e.currentTarget.querySelector(".card-name").style.color = "#1A1A1A";
+              }}
+            >
+              {/* Saffron thread — visible on hover */}
+              <div className="card-thread" style={{
+                position:"absolute", left:0, top:0, bottom:0, width:3,
+                background:"#9c3f00", opacity:0,
+                transition:"opacity 0.25s ease",
               }}/>
 
-              {/* Icon + Name + Category */}
-              <div style={{ display:"flex", alignItems:"flex-start", gap:10, marginBottom:10 }}>
-                <div style={{ width:40, height:40, borderRadius:12, flexShrink:0,
-                  background:`${srcMeta.color}18`, display:"flex",
-                  alignItems:"center", justifyContent:"center", fontSize:18, boxShadow:`inset 0 0 0 1px ${srcMeta.color}22` }}>
-                  {CAT_ICON[scheme.category]||"📋"}
-                </div>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:8 }}>
-                    <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ fontWeight:700, fontSize:13, color:"#1f2937",
-                        lineHeight:1.3, marginBottom:2,
-                        overflow:"hidden", textOverflow:"ellipsis",
-                        display:"-webkit-box", WebkitLineClamp:2,
-                        WebkitBoxOrient:"vertical" }}>
-                        {scheme.name}
-                      </div>
-                      <div style={{ fontSize:10.5, color:"#9ca3af" }}>
-                        {scheme.category||"General"}
-                        {launchYear ? ` · Since ${launchYear}` : ""}
-                      </div>
-                    </div>
-                    <div style={{
-                      background: hasAnyMetric ? `${srcMeta.color}12` : "#f8fafc",
-                      color: hasAnyMetric ? srcMeta.color : "#94a3b8",
-                      border: `1px solid ${hasAnyMetric ? `${srcMeta.color}25` : "#e2e8f0"}`,
-                      borderRadius:999, padding:"4px 8px", fontSize:10, fontWeight:700,
-                      whiteSpace:"nowrap", flexShrink:0
-                    }}>
-                      {hasAnyMetric ? `${availableStatCount}/3 metrics` : "View details →"}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Benefit / description */}
-              <div style={{ fontSize:11.5, color:"#475569", lineHeight:1.55,
-                marginBottom:12, minHeight:54 }}>
-                {cardSummary}
-              </div>
-
-              {/* Stats row */}
-              {hasAnyMetric && (
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr",
-                  gap:8, marginBottom:10 }}>
-                  {cardStats.filter((stat) => stat.val).map((stat,j) => (
-                    <div key={j} style={{
-                      background:`${stat.color}10`,
-                      border:`1px solid ${stat.color}18`,
-                      borderRadius:10, padding:"8px 8px 7px",
-                    }}>
-                      <div style={{ fontSize:9, fontWeight:700, color:"#94a3b8",
-                        letterSpacing:"0.06em", marginBottom:5, textTransform:"uppercase" }}>{stat.label}</div>
-                      <div style={{ fontSize:13, fontWeight:800,
-                        color:stat.color, lineHeight:1.2 }}>
-                        {typeof stat.val === "number"
-                          ? stat.val.toLocaleString("en-IN")
-                          : stat.val}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Progress bar */}
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
-                marginBottom:6, gap:8 }}>
-                <span style={{ fontSize:10.5, fontWeight:700, color:"#94a3b8", letterSpacing:"0.04em", textTransform:"uppercase" }}>
-                  Data Availability
-                </span>
-                <span style={{ fontSize:11, color:hasAnyMetric ? "#475569" : "#94a3b8", fontWeight:600, whiteSpace:"nowrap" }}>
-                  {hasAnyMetric ? `${availableStatCount} official field${availableStatCount > 1 ? "s" : ""} visible` : "Details open for full text"}
-                </span>
-              </div>
-              <div style={{ height:5, background:"#f1f5f9", borderRadius:999,
-                overflow:"hidden", marginBottom:12 }}>
+              {/* Category badge + ID */}
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:16 }}>
                 <div style={{
-                  height:"100%",
-                  width: `${Math.max((availableStatCount / cardStats.length) * 100, hasAnyMetric ? 24 : 12)}%`,
-                  background: hasAnyMetric
-                    ? `linear-gradient(90deg,${srcMeta.color},${srcMeta.color}99)`
-                    : "linear-gradient(90deg,#cbd5e1,#e2e8f0)",
-                  borderRadius:999,
-                }}/>
+                  display:"flex", alignItems:"center", gap:6,
+                  padding:"4px 10px", background:"#faf2ea", borderRadius:6,
+                }}>
+                  <span style={{ width:6, height:6, borderRadius:"50%", background:catDot, display:"inline-block" }}/>
+                  <span style={{
+                    fontSize:10, fontWeight:700, color:"#594237",
+                    textTransform:"uppercase", letterSpacing:"0.1em",
+                    fontFamily:"Manrope,sans-serif",
+                  }}>
+                    {scheme.category || "General"}
+                  </span>
+                </div>
+                <span style={{
+                  fontSize:10, color:"#8c7165", fontWeight:500,
+                  fontFamily:"IBM Plex Mono,monospace",
+                  textTransform:"uppercase", letterSpacing:"0.05em",
+                }}>
+                  {scheme._src?.toUpperCase() || "—"}
+                </span>
               </div>
 
-              {/* Source citation */}
-              <div style={{ display:"flex", alignItems:"center", gap:5,
-                fontSize:9.5, color:"#94a3b8", marginTop:"auto" }}>
-                <span style={{ display:"inline-block", width:12, height:12,
-                  background:`${srcMeta.color}20`, borderRadius:3,
-                  textAlign:"center", lineHeight:"12px", fontSize:8, flexShrink:0 }}>
-                  {srcMeta.icon}
-                </span>
-                <span style={{ overflow:"hidden", textOverflow:"ellipsis",
-                  whiteSpace:"nowrap" }}>
-                  {scheme.source || srcMeta.url}
-                </span>
+              {/* Scheme name */}
+              <h3 className="card-name" style={{
+                fontFamily:"Newsreader,serif", fontSize:18, fontWeight:600,
+                color:"#1A1A1A", marginBottom:12, lineHeight:1.3,
+                transition:"color 0.2s ease",
+              }}>
+                {scheme.name}
+              </h3>
+
+              {/* Description */}
+              <p style={{
+                fontSize:13.5, color:"#594237", lineHeight:1.6,
+                marginBottom:24, fontFamily:"Manrope,sans-serif",
+                display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical",
+                overflow:"hidden",
+              }}>
+                {cardSummary}
+              </p>
+
+              {/* Data Availability bar — pushed to bottom */}
+              <div style={{ marginTop:"auto" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                  <span style={{
+                    fontSize:10, fontWeight:700, color:"#8c7165",
+                    textTransform:"uppercase", letterSpacing:"0.1em",
+                    fontFamily:"Manrope,sans-serif",
+                  }}>
+                    Data Availability
+                  </span>
+                  <span style={{
+                    fontSize:10, fontWeight:700, color:"#9c3f00",
+                    fontFamily:"IBM Plex Mono,monospace",
+                  }}>
+                    {availPct}%
+                  </span>
+                </div>
+                <div style={{
+                  height:6, background:"#e9e1d9", borderRadius:99, overflow:"hidden", marginBottom:16,
+                }}>
+                  <div style={{
+                    height:"100%", width:`${Math.min(availPct, 100)}%`,
+                    background:"#9c3f00", borderRadius:99,
+                  }}/>
+                </div>
+
+                {/* Footer: source + View Details */}
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                  <span style={{
+                    fontSize:11.5, color:"#e0c0b2", fontStyle:"italic", fontWeight:700,
+                    fontFamily:"Manrope,sans-serif",
+                  }}>
+                    Source: {scheme._src_label || srcMeta.label}
+                  </span>
+                  <span style={{
+                    fontSize:13, fontWeight:700, color:"#9c3f00",
+                    display:"flex", alignItems:"center", gap:4,
+                    fontFamily:"Manrope,sans-serif", cursor:"pointer",
+                  }}>
+                    View Details →
+                  </span>
+                </div>
               </div>
             </div>
           );
@@ -4315,6 +4411,8 @@ export default function App() {
     setLog(p=>[{ts,msg,type},...p].slice(0,30));
   },[]);
 
+  useEffect(() => { injectDesignFonts(); }, []);
+
   useEffect(()=>{ const t=setInterval(()=>setNow(new Date()),1000); return ()=>clearInterval(t); },[]);
   useEffect(() => {
     const onResize = () => setDesktopViewport(isDesktopViewport());
@@ -4405,209 +4503,165 @@ export default function App() {
   const totalSchemes=agg?.kpis?.total_schemes||0;
   const totalPortals=agg?.kpis?.total_portals||0;
 
-  const TABS=[
-    {id:"dashboard",label:"Dashboard",icon:"◉"},
-    {id:"schemes",label:"Schemes",icon:"⊞",badge:totalSchemes||null},
-    {id:"igod",label:"IGOD",icon:"🏛️",badge:totalPortals||null},
-    {id:"budget",label:"Budget Data",icon:"₹"},
-    {id:"districts",label:"Districts-Insights",icon:"🗺️"},
-    //{id:"pmjdy",label:"Jan Dhan",icon:"🏦"},
-   // {id:"sbmg",label:"SBM-G",icon:"🚿"},
-   // {id:"pmgdisha",label:"PMGDISHA",icon:"💻"},
-   // {id:"saubhagya",label:"Saubhagya",icon:"⚡"},
-   // {id:"mgnrega_raj",label:"MGNREGA",icon:"🏗️"},
-   // {id:"pmfby",label:"PMFBY",icon:"🌾"},
-   // {id:"pmayg",label:"PMAY-G",icon:"🏠"},
-   // {id:"scholarship",label:"Scholarship",icon:"🎓"},
-    {id:"alerts",label:"Live Alerts",icon:"⚡",badge:criticalCount||null},
-    {id:"insights",label:"AI Insights",icon:"🧠",highlight:true},
-  ];
+  // const TABS=[
+  //   {id:"dashboard",label:"Dashboard",icon:"◉"},
+  //   {id:"schemes",label:"Schemes",icon:"⊞",badge:totalSchemes||null},
+  //   {id:"igod",label:"IGOD",icon:"🏛️",badge:totalPortals||null},
+  //   {id:"budget",label:"Budget Data",icon:"₹"},
+  //   {id:"districts",label:"Districts-Insights",icon:"🗺️"},
+  //   //{id:"pmjdy",label:"Jan Dhan",icon:"🏦"},
+  //  // {id:"sbmg",label:"SBM-G",icon:"🚿"},
+  //  // {id:"pmgdisha",label:"PMGDISHA",icon:"💻"},
+  //  // {id:"saubhagya",label:"Saubhagya",icon:"⚡"},
+  //  // {id:"mgnrega_raj",label:"MGNREGA",icon:"🏗️"},
+  //  // {id:"pmfby",label:"PMFBY",icon:"🌾"},
+  //  // {id:"pmayg",label:"PMAY-G",icon:"🏠"},
+  //  // {id:"scholarship",label:"Scholarship",icon:"🎓"},
+  //   {id:"alerts",label:"Live Alerts",icon:"⚡",badge:criticalCount||null},
+  //   {id:"insights",label:"AI Insights",icon:"🧠",highlight:true},
+  // ];
 
   return (
-    <div style={{
-      minHeight:"100vh",
-      background:`linear-gradient(180deg, ${THEME.sandstone} 0%, #f5f7fb 32%, #eaf2fb 100%)`,
-      color:"#0f172a",
-      fontFamily:"\"Trebuchet MS\", \"Segoe UI\", \"Noto Sans\", sans-serif",
-      position:"relative",
-    }}>
-      <div style={{
-        position:"absolute",
-        inset:0,
-        background:"radial-gradient(circle at top right, rgba(15,124,151,0.12), transparent 28%), radial-gradient(circle at top left, rgba(229,106,31,0.12), transparent 32%), linear-gradient(rgba(255,255,255,0.18) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.18) 1px, transparent 1px)",
-        backgroundSize:"auto, auto, 30px 30px, 30px 30px",
-        pointerEvents:"none",
-        opacity:0.9,
-      }}/>
-      <div style={{ background:"rgba(255,255,255,0.82)", borderBottom:`1px solid ${THEME.border}`,
-        position:"sticky", top:0, zIndex:100, boxShadow:"0 16px 36px rgba(15,23,42,0.08)", backdropFilter:"blur(16px)" }}>
+    <div style={{ minHeight:"100vh", background:"#fff8f3", fontFamily:"Manrope, sans-serif", color:"#1e1b16" }}>
 
-        <div style={{ display:"flex", alignItems:"center", gap:12, padding:"14px 22px", flexWrap:"wrap" }}>
-          <div style={{ width:52, height:52, borderRadius:18, background:`linear-gradient(135deg,${THEME.saffron},${THEME.saffronDeep})`,
-            display:"flex", alignItems:"center", justifyContent:"center",
-            color:"white", fontWeight:900, fontSize:17, flexShrink:0, boxShadow:"0 18px 34px rgba(229,106,31,0.32)" }}>AI</div>
-          <div style={{ minWidth:0 }}>
-            <div style={{ fontWeight:900, fontSize:18, color:"#132238", letterSpacing:"-0.03em" }}>AI Chief of Staff</div>
-            <div style={{ fontSize:10.5, color:"#7b8794", letterSpacing:"0.10em" }}>OFFICE OF CM · RAJASTHAN · VERIFIED GOVERNANCE DATA</div>
-          </div>
-          <div style={{ flex:"1 1 120px" }}/>
-          {desktopViewport && (
-            <div style={{ background:`linear-gradient(135deg,${THEME.peacockSoft},#f3fcff)`, border:"1px solid #c8eaf0", borderRadius:16,
-              padding:"10px 16px", display:"flex", alignItems:"center", gap:7, fontSize:12, color:THEME.peacock, fontWeight:700, boxShadow:"0 8px 22px rgba(15,124,151,0.08)" }}>
-              <span>📚</span><span>Sources: Budget 2025-26 · JJM MIS · PRS India</span>
-            </div>
-          )}
-          <div style={{ background:"linear-gradient(135deg,#ffffff,#f6fff9)", border:"1.5px solid #bbf7d0", borderRadius:16,
-            padding:"9px 14px", display:"flex", alignItems:"center", gap:7, boxShadow:"0 8px 20px rgba(34,197,94,0.07)" }}>
-            <div style={{ width:9, height:9, borderRadius:"50%", background:"#10b981", boxShadow:"0 0 0 3px #d1fae5" }}/>
-            <span style={{ fontSize:13, fontWeight:700, color:"#166534" }}>Verified Data</span>
-          </div>
+      {/* ── Fixed Top Bar ── */}
+      <header style={{
+        position:"fixed", top:0, left:0, right:0, height:56, zIndex:50,
+        background:"rgba(255,248,243,0.92)", backdropFilter:"blur(20px)",
+        borderBottom:"1px solid #e0c0b250",
+        display:"flex", alignItems:"center", padding:"0 20px",
+      }}>
+        <span style={{ width:220, flexShrink:0, paddingLeft:6, fontFamily:"'Newsreader',serif", fontSize:18, fontWeight:700, color:"#9c3f00", letterSpacing:"-0.3px" }}>
+          AI Chief of Staff
+        </span>
+        <div style={{ display:"flex", gap:6, flex:1, overflow:"hidden", alignItems:"center" }}>
+          {Object.entries(SRC).map(([sid,s]) => {
+            const st=srcStatus[sid]||{};
+            return (
+              <div key={sid} style={{ display:"flex", alignItems:"center", gap:6, background:st.status==="ok"?`${s.color}10`:"#efe7df", border:`1px solid ${st.status==="ok"?s.color+"28":"#e0c0b2"}`, borderRadius:99, padding:"5px 11px", fontSize:11, whiteSpace:"nowrap" }}>
+                <StatusDot status={scraping[sid]?"loading":st.status||"idle"} animating={!!scraping[sid]}/>
+                <span style={{ fontWeight:600, color:"#1e1b16" }}>{s.icon} {s.label}</span>
+                {st.count>0 && <span style={{ color:s.color, fontWeight:800, fontSize:10, fontFamily:"IBM Plex Mono,monospace" }}>{st.count}</span>}
+                {st.scraped_at && <span style={{ color:"#594237", fontSize:9.5, fontFamily:"IBM Plex Mono,monospace" }}>{timeAgo(st.scraped_at)}</span>}
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:12, flexShrink:0 }}>
+          <span style={{ fontSize:11, color:"#594237", fontFamily:"IBM Plex Mono,monospace" }}>
+            {now.toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})}
+          </span>
           <ScrapeNowButton onClick={scrapeAll} loading={scrapingAll} disabled={!online}/>
-          <div style={{ display:"flex", alignItems:"center", gap:10, paddingLeft:14, borderLeft:`1px solid ${THEME.border}`, background:"rgba(255,255,255,0.86)", borderRadius:18, padding:"8px 12px 8px 14px", boxShadow:"0 12px 26px rgba(15,23,42,0.05)", flex:"0 1 auto", minWidth:0 }}>
-            <div style={{ width:38, height:38, borderRadius:12, background:"#fee2e2",
-              display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>👤</div>
-            <div style={{ minWidth:0 }}>
-              <div style={{ fontWeight:800, fontSize:13, color:"#1f2937" }}>Bhajan Lal Sharma</div>
-              <div style={{ fontSize:11, color:"#8b97a7" }}>Chief Minister, Rajasthan</div>
+          <div style={{ display:"flex", alignItems:"center", gap:8, paddingLeft:12, borderLeft:"1px solid #e0c0b2" }}>
+            <span style={{ fontSize:13, fontWeight:600, color:"#1e1b16" }}>Bhajan Lal Sharma</span>
+            <div style={{ width:30, height:30, borderRadius:"50%", background:"#efe7df", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16 }}>👤</div>
+          </div>
+        </div>
+      </header>
+
+      {/* ── Fixed Left Sidebar ── */}
+      <aside style={{ width:220, flexShrink:0, position:"fixed", top:0, left:0, height:"100vh", background:"#faf2ea", display:"flex", flexDirection:"column", paddingTop:56, paddingBottom:20, zIndex:40 }}>
+        <div style={{ padding:"20px 22px 24px" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <div style={{ width:40, height:40, borderRadius:8, background:"linear-gradient(135deg,#9c3f00,#c45100)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <span style={{ color:"#fff", fontSize:20 }}>🏛️</span>
+            </div>
+            <div>
+              <p style={{ fontSize:10, fontWeight:800, letterSpacing:"0.1em", textTransform:"uppercase", color:"#1e1b16", margin:0 }}>Office of CM</p>
+              <p style={{ fontSize:9, color:"#9c3f00", textTransform:"uppercase", letterSpacing:"0.07em", margin:0, fontFamily:"IBM Plex Mono,monospace" }}>Rajasthan</p>
             </div>
           </div>
         </div>
-
-        <div style={{ display:"flex", gap:8, padding:"10px 24px", background:"rgba(250,251,252,0.88)",
-          borderTop:"1px solid #f3f4f6", overflowX:"auto" }}>
-          {Object.entries(SRC).map(([sid,s])=>{
-            const st=srcStatus[sid]||{};
-            const targetTab = sid === "igod" ? "igod" : sid === "myscheme" || sid === "rajras" || sid === "jansoochna" ? "schemes" : "dashboard";
+        <nav style={{ flex:1 }}>
+          {[
+            {id:"dashboard",label:"Overview",          icon:"◉"},
+            {id:"schemes",  label:"Scheme Intelligence",icon:"⊞"},
+            {id:"igod",     label:"Portal Directory",   icon:"🏛️"},
+            {id:"budget",   label:"Budget & Fiscal",    icon:"₹"},
+            {id:"districts",label:"District Coverage",  icon:"🗺️"},
+            {id:"alerts",   label:"Intelligence Alerts",icon:"⚡"},
+            {id:"insights", label:"AI Briefing",        icon:"🧠"},
+          ].map(item => {
+            const isActive = tab === item.id;
             return (
-              <button
-                key={sid}
-                onClick={()=>setTab(targetTab)}
-                style={{ display:"flex", alignItems:"center", gap:6,
-                  background:st.status==="ok"?`${s.color}10`:"#f1f5f9",
-                  border:`1px solid ${st.status==="ok"?s.color+"30":"#e5e7eb"}`,
-                  borderRadius:999, padding:"6px 11px", fontSize:11, whiteSpace:"nowrap",
-                  cursor:"pointer" }}
+              <button key={item.id} onClick={()=>setTab(item.id)} style={{
+                width:"100%", textAlign:"left", display:"flex", alignItems:"center", gap:12,
+                padding:"12px 22px",
+                background:isActive?"#fff8f3":"transparent",
+                borderLeft:isActive?"4px solid #9c3f00":"4px solid transparent",
+                color:isActive?"#9c3f00":"#594237",
+                fontFamily:"Manrope,sans-serif", fontSize:13,
+                fontWeight:isActive?700:500, cursor:"pointer", border:"none",
+                transition:"all 0.15s ease",
+              }}
+              onMouseEnter={e=>{ if(!isActive) e.currentTarget.style.background="#efe7df"; }}
+              onMouseLeave={e=>{ if(!isActive) e.currentTarget.style.background="transparent"; }}
               >
-                <StatusDot status={scraping[sid]?"loading":st.status||"idle"} animating={!!scraping[sid]}/>
-                <span style={{ fontWeight:600, color:"#374151" }}>{s.icon} {s.label}</span>
-                {st.count>0&&<span style={{ color:s.color, fontWeight:800 }}>{st.count}</span>}
-                {st.scraped_at&&<span style={{ color:"#94a3b8" }}>{timeAgo(st.scraped_at)}</span>}
+                <span style={{ fontSize:16 }}>{item.icon}</span>
+                {item.label}
+                {item.id==="alerts" && criticalCount>0 && (
+                  <span style={{ marginLeft:"auto", background:"#ba1a1a", color:"#fff", borderRadius:99, padding:"1px 7px", fontSize:9, fontWeight:800, fontFamily:"IBM Plex Mono,monospace" }}>{criticalCount}</span>
+                )}
               </button>
             );
           })}
-          {agg?.scraped_at&&(
-            <div style={{ marginLeft:"auto", fontSize:11, color:"#94a3b8", alignSelf:"center", whiteSpace:"nowrap" }}>
-              Aggregated {timeAgo(agg.scraped_at)}
-            </div>
-          )}
+        </nav>
+        <div style={{ padding:"14px 22px 0", borderTop:"1px solid #e0c0b2" }}>
+          {[{icon:"☁️",label:"System Status"},{icon:"❓",label:"Support"}].map(item=>(
+            <button key={item.label} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 0", background:"none", color:"#594237", fontSize:12, fontFamily:"Manrope,sans-serif", fontWeight:500, cursor:"pointer", width:"100%", textAlign:"left", border:"none" }}>
+              <span style={{ fontSize:14 }}>{item.icon}</span>{item.label}
+            </button>
+          ))}
         </div>
+      </aside>
+
+      {/* ── Main content ── */}
+      <main style={{ marginLeft:220, paddingTop:72, paddingLeft:28, paddingRight:28, paddingBottom:48, minHeight:"100vh" }}>
+
+        {online===null&&(
+          <div style={{ background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:8, padding:"10px 16px", marginBottom:16, display:"flex", gap:10, alignItems:"center" }}>
+            <span style={{ animation:"ds-spin 1s linear infinite", display:"inline-block" }}>⚙️</span>
+            <span style={{ fontSize:13, color:"#1d4ed8", fontWeight:600 }}>Connecting to backend… (Render free tier may take 30–60 seconds)</span>
+          </div>
+        )}
+        {online===false&&(
+          <div style={{ background:"#fef2f2", border:"1px solid #fecaca", borderRadius:8, padding:"10px 16px", marginBottom:16, display:"flex", gap:10, alignItems:"center", flexWrap:"wrap" }}>
+            <span>⚠️</span>
+            <span style={{ fontSize:13, color:"#991b1b", fontWeight:600 }}>Backend sleeping. Click Refresh — wakes in ~30s.</span>
+            <button onClick={()=>{ setOnline(null); axios.get(`${API}/`).then(()=>setOnline(true)).catch(()=>setOnline(false)); }} style={{ background:"#ef4444", color:"white", border:"none", borderRadius:99, padding:"5px 14px", fontSize:12, fontWeight:700, cursor:"pointer" }}>Retry</button>
+          </div>
+        )}
 
         {scrapeLog.length>0&&(
-          <div style={{ padding:"7px 24px", background:"#f8fafc", borderTop:"1px solid #f3f4f6",
-            display:"flex", alignItems:"center", gap:10, overflowX:"auto" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10, overflowX:"auto", marginBottom:12, padding:"6px 0" }}>
             {scrapeLog.slice(0,5).map((log,i)=>(
-              <div key={i} style={{ display:"flex", alignItems:"center", gap:5, fontSize:11,
-                whiteSpace:"nowrap",
-                color:log.type==="success"?"#166534":log.type==="error"?"#991b1b":"#64748b",
-                opacity:i===0?1:0.5 }}>
-                <span style={{ fontSize:10, color:"#94a3b8" }}>{log.ts}</span>
+              <div key={i} style={{ display:"flex", alignItems:"center", gap:5, fontSize:11, whiteSpace:"nowrap", color:log.type==="success"?"#1E6B45":log.type==="error"?"#ba1a1a":"#594237", opacity:i===0?1:0.5 }}>
+                <span style={{ fontSize:10, color:"#8c7165", fontFamily:"IBM Plex Mono,monospace" }}>{log.ts}</span>
                 <span>{log.msg}</span>
-                {i<scrapeLog.slice(0,5).length-1&&<span style={{color:"#d1d5db"}}>·</span>}
+                {i<scrapeLog.slice(0,5).length-1&&<span style={{color:"#e0c0b2"}}>·</span>}
               </div>
             ))}
           </div>
         )}
 
-        <div style={{
-          display:"flex",
-          padding:"4px 14px",
-          borderTop:"1px solid #f1f5f9",
-          overflowX:"auto",
-          WebkitOverflowScrolling:"touch",
-          scrollbarWidth:"none",
-          background:"linear-gradient(180deg, rgba(255,255,255,0.92), rgba(248,250,252,0.98))",
-        }}>
-          {TABS.map(t=>(
-            <button key={t.id} onClick={()=>setTab(t.id)} style={{
-              background:t.highlight&&tab===t.id
-                ? "linear-gradient(135deg,#f97316,#ea580c)"
-                : tab===t.id
-                ? "linear-gradient(135deg,#fff4e8,#ffffff)"
-                : t.highlight
-                ? "#fff7ed"
-                : "transparent",
-              borderBottom:!t.highlight&&tab===t.id?"2.5px solid #f97316":!t.highlight?"2.5px solid transparent":"none",
-              borderRadius:t.highlight||tab===t.id?"12px":0,
-              margin:t.highlight||tab===t.id?"5px 4px":0,
-              padding:t.highlight?"8px 16px":"11px 18px",
-              fontWeight:tab===t.id?700:500,
-              color:t.highlight&&tab===t.id?"white":t.highlight?"#f97316":tab===t.id?"#f97316":"#6b7280",
-              fontSize:13, display:"flex", alignItems:"center", gap:6,
-              border:t.highlight&&tab!==t.id?"1.5px solid #fed7aa":tab===t.id?"1px solid #fed7aa":"none",
-              boxShadow:tab===t.id?"0 10px 24px rgba(249,115,22,0.10)":"none",
-              transition:"all .15s",
-            }}>
-              <span>{t.icon}</span> {t.label}
-              {t.badge&&<span style={{ background:t.id==="alerts"?"#ef4444":"#f97316",
-                color:"white", borderRadius:20, padding:"1px 7px", fontSize:10, fontWeight:800 }}>{t.badge}</span>}
-            </button>
-          ))}
-          <div style={{ marginLeft:"auto", alignSelf:"center", fontSize:12, color:"#9ca3af", paddingRight:4 }}>
-            {now.toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})} ·{" "}
-            {now.toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"})}
-          </div>
-        </div>
-      </div>
-
-      {online===null&&(
-        <div style={{ background:"#f0f9ff", borderBottom:"1px solid #bae6fd",
-          padding:"8px 28px", display:"flex", gap:10, alignItems:"center" }}>
-          <span style={{ animation:"spin 1s linear infinite", display:"inline-block" }}>⚙️</span>
-          <span style={{ fontSize:13, color:"#0369a1", fontWeight:600 }}>
-            Connecting to backend… (Render free tier may take 30–60 seconds to wake up)
-          </span>
-        </div>
-      )}
-      {online===false&&(
-        <div style={{ background:"#fef2f2", borderBottom:"1px solid #fecaca",
-          padding:"10px 28px", display:"flex", gap:10, alignItems:"center", flexWrap:"wrap" }}>
-          <span>⚠️</span>
-          <span style={{ fontSize:13, color:"#991b1b", fontWeight:600 }}>Backend sleeping (Render free tier).</span>
-          <span style={{ fontSize:13, color:"#991b1b" }}>Click <strong>⚡ Scrape Now</strong> — wakes in ~30s.</span>
-          <button onClick={()=>{ setOnline(null); axios.get(`${API}/`).then(()=>setOnline(true)).catch(()=>setOnline(false)); }}
-            style={{ background:"#ef4444", color:"white", border:"none",
-              borderRadius:8, padding:"5px 14px", fontSize:12, fontWeight:700, cursor:"pointer" }}>
-            Retry Connection
-          </button>
-        </div>
-      )}
-
-      <div style={{ maxWidth:1280, margin:"0 auto", padding:"clamp(18px, 3vw, 30px) clamp(12px, 2.5vw, 18px) 36px", position:"relative" }}>
-        {tab==="dashboard"&&<DashboardTab agg={agg} srcStatus={srcStatus}
-          onScrapeAll={scrapeAll} onScrapeOne={scrapeOne}
-          scraping={scraping} scrapingAll={scrapingAll} online={online}
-          budget={budget} budgetLoading={budgetLoading}/>}
-        {tab==="schemes"&&<SchemesTab agg={agg} rajrasData={rajrasData} jansoochnaData={jansoochnaData} onScrapeAll={scrapeAll}/>}
-        {tab==="igod"&&<PortalsTab agg={agg} onScrapeAll={scrapeAll}/>}
-        {tab==="budget"&&<BudgetDataTab budget={budget} budgetLoading={budgetLoading}
-          onRefresh={()=>{ setBudget(null); setBudgetLoading(true);
-            fetch(`${API}/budget?refresh=true`).then(r=>r.json()).then(d=>{setBudget(d);setBudgetLoading(false);}).catch(()=>setBudgetLoading(false)); }}/>}
-        {tab==="districts"&&<DistrictsTab agg={agg} onScrapeAll={scrapeAll} schemeDashboards={schemeDashboards}/>}
-        {tab==="pmjdy"&&<PmjdyTab schemeDashboards={schemeDashboards} agg={agg} onScrapeAll={scrapeAll}/>}
-        {tab==="sbmg"&&<SbmgTab schemeDashboards={schemeDashboards} agg={agg} onScrapeAll={scrapeAll}/>}
-        {tab==="pmgdisha"&&<PmgdishaTab schemeDashboards={schemeDashboards} agg={agg} onScrapeAll={scrapeAll}/>}
-        {tab==="saubhagya"&&<SaubhagyaTab schemeDashboards={schemeDashboards} agg={agg} onScrapeAll={scrapeAll}/>}
-        {tab==="mgnrega_raj"&&<MgnregaTab schemeDashboards={schemeDashboards} agg={agg} onScrapeAll={scrapeAll}/>}
-        {tab==="pmfby"&&<PmfbyTab schemeDashboards={schemeDashboards} agg={agg} onScrapeAll={scrapeAll}/>}
-        {tab==="pmayg"&&<PmayGTab schemeDashboards={schemeDashboards} agg={agg} onScrapeAll={scrapeAll}/>}
+        {tab==="dashboard" && <DashboardTab agg={agg} srcStatus={srcStatus} onScrapeAll={scrapeAll} onScrapeOne={scrapeOne} scraping={scraping} scrapingAll={scrapingAll} online={online} budget={budget} budgetLoading={budgetLoading}/>}
+        {tab==="schemes"   && <SchemesTab   agg={agg} rajrasData={rajrasData} jansoochnaData={jansoochnaData} onScrapeAll={scrapeAll}/>}
+        {tab==="igod"      && <PortalsTab   agg={agg} onScrapeAll={scrapeAll}/>}
+        {tab==="budget"    && <BudgetDataTab budget={budget} budgetLoading={budgetLoading} onRefresh={()=>{ setBudget(null); setBudgetLoading(true); fetch(`${API}/budget?refresh=true`).then(r=>r.json()).then(d=>{setBudget(d);setBudgetLoading(false);}).catch(()=>setBudgetLoading(false)); }}/>}
+        {tab==="districts" && <DistrictsTab agg={agg} onScrapeAll={scrapeAll} schemeDashboards={schemeDashboards}/>}
+        {tab==="alerts"    && <AlertsTab    agg={agg} onScrapeAll={scrapeAll}/>}
+        {tab==="insights"  && <InsightsEngine schemes={agg?.schemes||[]} portals={agg?.portals||[]} onScrapeFirst={scrapeAll}/>}
+        {tab==="pmjdy"     && <PmjdyTab      schemeDashboards={schemeDashboards} agg={agg} onScrapeAll={scrapeAll}/>}
+        {tab==="sbmg"      && <SbmgTab       schemeDashboards={schemeDashboards} agg={agg} onScrapeAll={scrapeAll}/>}
+        {tab==="pmgdisha"  && <PmgdishaTab   schemeDashboards={schemeDashboards} agg={agg} onScrapeAll={scrapeAll}/>}
+        {tab==="saubhagya" && <SaubhagyaTab  schemeDashboards={schemeDashboards} agg={agg} onScrapeAll={scrapeAll}/>}
+        {tab==="mgnrega_raj"&&<MgnregaTab    schemeDashboards={schemeDashboards} agg={agg} onScrapeAll={scrapeAll}/>}
+        {tab==="pmfby"     && <PmfbyTab      schemeDashboards={schemeDashboards} agg={agg} onScrapeAll={scrapeAll}/>}
+        {tab==="pmayg"     && <PmayGTab      schemeDashboards={schemeDashboards} agg={agg} onScrapeAll={scrapeAll}/>}
         {tab==="scholarship"&&<ScholarshipTab schemeDashboards={schemeDashboards} agg={agg} onScrapeAll={scrapeAll}/>}
-        {tab==="alerts"&&<AlertsTab agg={agg} onScrapeAll={scrapeAll}/>}
-        {tab==="insights"&&<InsightsEngine schemes={agg?.schemes||[]} portals={agg?.portals||[]} onScrapeFirst={scrapeAll}/>}
-      </div>
+      </main>
 
-      <footer style={{ borderTop:"1px solid #e5e7eb", background:"rgba(255,255,255,0.82)",
-        padding:"14px 24px", fontSize:11, color:"#7f8a99",
-        display:"flex", justifyContent:"space-between", gap:10, flexWrap:"wrap" }}>
+      <footer style={{ marginLeft:220, borderTop:"1px solid #e0c0b2", background:"#ffffff", padding:"12px 28px", fontSize:11, color:"#594237", display:"flex", justifyContent:"space-between", gap:10, flexWrap:"wrap" }}>
         <span>AI Chief of Staff · Office of Chief Minister, Rajasthan</span>
         <span>Data: IGOD · RajRAS · Jan Soochna · MyScheme.gov.in</span>
       </footer>
